@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Code Editor</title>
+    <link rel="icon" href="/images/logo.ico" type="image/x-icon" />
+    <meta name="description"content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+    <meta name="author" content="Phúc Nguyễn" />
+    <!-- SEO Open Graph -->
+    <meta property="og:title" content="Code Editor" />
+    <meta property="og:description"content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+    <meta property="og:image" content="/images/avatar.webp" />
+    <meta property="og:url" content="https://phucnguyengroups.github.io.git" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#000000" />
+
+  <!-- Đăng ký Service Worker -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/public/service-worker.js')
+            .then(() => {
+                console.log('Service Worker đã được đăng ký');
+            })
+            .catch((err) => {
+                console.error('Đăng ký Service Worker thất bại:', err);
+            });
+         }
+    </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/@fortawesome/fontawesome-free/css/all.css" rel="stylesheet" />
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet" />
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white font-sans">
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="bg-gray-800 rounded-xl shadow-lg p-8 w-full max-w-md">
+      <h2 class="text-3xl font-bold text-center mb-6">🔐 Xác Thực.</h2>
+
+      <div>
+        <h3 class="text-xl mb-4">GitHub Access</h3>
+        <input id="gh-username" class="w-full mb-6 px-4 py-2 rounded text-black" type="text" placeholder="GitHub Username" />
+        <input id="gh-token" class="w-full mb-6 px-4 py-2 rounded text-black" type="password" placeholder="GitHub Token (PAT)" />
+        <button onclick="checkToken()" class="w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Kiểm tra Token</button>
+      </div>
+
+      <p id="message" class="mt-4 text-center text-sm text-yellow-300"></p>
+    </div>
+  </div>
+
+  <script>
+    AOS.init({ duration: 800, once: true });
+
+    async function checkToken() {
+      const ghUser = document.getElementById('gh-username').value.trim();
+      const ghToken = document.getElementById('gh-token').value.trim();
+
+      if (!ghUser || !ghToken) {
+        return showMessage("⚠️ Vui lòng nhập đầy đủ GitHub Username và Token.");
+      }
+
+      try {
+        // Gọi API GitHub lấy thông tin user để xác thực token
+        const res = await fetch(`https://api.github.com/user`, {
+          headers: {
+            Authorization: `token ${ghToken}`,
+            Accept: 'application/vnd.github.v3+json'
+          }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.login.toLowerCase() === ghUser.toLowerCase()) {
+            showMessage("✅ Xác thực thành công..");
+            setTimeout(() => {
+              window.location.href = "/public/code-editor.html";
+            }, 1500);
+          } else {
+            showMessage("❌ Token hợp lệ nhưng không khớp với username đã nhập.");
+          }
+        } else if (res.status === 401) {
+          showMessage("❌ Token không hợp lệ hoặc đã hết hạn.");
+        } else {
+          showMessage("❌ Lỗi khi kiểm tra token: " + res.statusText);
+        }
+      } catch (e) {
+        console.error(e);
+        showMessage("❌ Lỗi kết nối hoặc token không hợp lệ.");
+      }
+    }
+
+    function showMessage(msg) {
+      document.getElementById('message').textContent = msg;
+    }
+  </script>
+  <script src="/script/cookie.js"></script>
+</body>
+</html>
