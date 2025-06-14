@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code Editor</title>
+  <link rel="icon" href="/images/logo.ico" type="image/x-icon" />
+  <meta name="description" content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+  <meta name="author" content="Phúc Nguyễn" />
+  <meta property="og:title" content="Code Editor" />
+  <meta property="og:description" content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+  <meta property="og:image" content="/images/avatar.webp" />
+  <meta property="og:url" content="https://phucnguyengroups.github.io.git" />
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#000000" />
+
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/@fortawesome/fontawesome-free/css/all.css" rel="stylesheet" />
+
+  <!-- AOS Library -->
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet" />
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+
+  <style>
+    .blinking-cursor {
+      font-weight: 700;
+      font-size: 1.4rem;
+      color: #22c55e;
+      animation: blink 1s step-start infinite;
+      display: inline-block;
+      vertical-align: bottom;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+  </style>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(`${location.origin}/service-worker.js`)
+        .then(() => console.log('Service Worker đã được đăng ký'))
+        .catch(err => console.error('Đăng ký Service Worker thất bại:', err));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      AOS.init({ duration: 800, once: true });
+
+      const codeDemo = document.getElementById('code-demo');
+      const codeLines = [
+        "function greet(name) {",
+        "  console.log(`Xin chào, ${name}!`);",
+        "}",
+        "",
+        "greet('Phúc Nguyễn');",
+        "// Chúc bạn coding vui vẻ! 🚀"
+      ];
+
+      let currentLine = 0;
+      let currentChar = 0;
+      let displayedText = '';
+      let isDeleting = false;
+      const typingSpeed = 70;
+      const pauseTime = 1500;
+
+      function type() {
+        if (!isDeleting) {
+          if (currentChar < codeLines[currentLine].length) {
+            displayedText += codeLines[currentLine].charAt(currentChar);
+            codeDemo.textContent = displayedText;
+            currentChar++;
+            setTimeout(type, typingSpeed);
+          } else {
+            setTimeout(() => {
+              if (currentLine === codeLines.length - 1) {
+                isDeleting = true;
+                setTimeout(type, typingSpeed);
+              } else {
+                displayedText += '\n';
+                currentLine++;
+                currentChar = 0;
+                setTimeout(type, typingSpeed);
+              }
+            }, pauseTime);
+          }
+        } else {
+          if (displayedText.length > 0) {
+            displayedText = displayedText.slice(0, -1);
+            codeDemo.textContent = displayedText;
+            setTimeout(type, typingSpeed / 2);
+          } else {
+            isDeleting = false;
+            currentLine = 0;
+            currentChar = 0;
+            setTimeout(type, typingSpeed);
+          }
+        }
+      }
+
+      type();
+    });
+  </script>
+</head>
+
+<body class="bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white font-sans">
+
+  <!-- Logo -->
+  <div class="w-full flex justify-center items-center pt-8" data-aos="fade-up">
+    <img src="/images/logo.webp" alt="Logo Code Editor" class="w-24 h-24 shadow-lg rounded-full">
+  </div>
+
+  <!-- Hero -->
+  <section class="min-h-screen flex flex-col justify-center items-center text-center px-6">
+    <h1 class="text-5xl md:text-6xl font-extrabold mb-6" data-aos="fade-up" data-aos-delay="100">
+      🔥 Code Editor
+    </h1>
+
+    <!-- Trình soạn thảo mô phỏng -->
+    <div class="w-full max-w-3xl bg-gray-950/90 backdrop-blur-sm rounded-xl shadow-2xl border border-gray-700 overflow-hidden text-left mt-6"
+         data-aos="fade-up" data-aos-delay="200">
+      <div class="flex items-center justify-between bg-gray-800 px-4 py-2 border-b border-gray-700">
+        <div class="flex space-x-2">
+          <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+          <span class="w-3 h-3 bg-yellow-400 rounded-full"></span>
+          <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+        </div>
+        <span class="text-sm text-gray-400 font-mono">index.js</span>
+        <span></span>
+      </div>
+      <div class="px-5 py-4 font-mono text-green-400 text-lg whitespace-pre-wrap min-h-[160px]">
+        <pre id="code-demo"></pre><span class="blinking-cursor">|</span>
+      </div>
+    </div>
+
+    <p class="text-lg text-gray-300 max-w-2xl mt-8 mb-6" data-aos="fade-up" data-aos-delay="300">
+      Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt.
+    </p>
+
+    <a href="/public/code-editor.html" class="inline-block bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg text-lg transition" data-aos="fade-up" data-aos-delay="400">
+      Bắt đầu ngay
+    </a>
+  </section>
+
+  <!-- Features -->
+  <section class="py-20 px-6 bg-gray-900">
+    <div class="max-w-6xl mx-auto text-center">
+      <h2 class="text-3xl font-bold mb-10" data-aos="fade-up">✨ Tính Năng Nổi Bật</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 text-left">
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="100">
+          <div class="text-3xl text-blue-400 mb-4"><i class="fas fa-code"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Trình soạn thảo Monaco</h3>
+          <p class="text-gray-400">Tương tự VS Code, hỗ trợ nhiều ngôn ngữ, gợi ý thông minh và tự động hoàn thành.</p>
+        </div>
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="200">
+          <div class="text-3xl text-green-400 mb-4"><i class="fab fa-github"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Tích hợp GitHub</h3>
+          <p class="text-gray-400">Tải mã từ GitHub hoặc lưu trực tiếp lên repository một cách dễ dàng.</p>
+        </div>
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="300">
+          <div class="text-3xl text-yellow-400 mb-4"><i class="fas fa-eye"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Xem trước HTML/Markdown</h3>
+          <p class="text-gray-400">Hiển thị kết quả tức thì cho HTML, CSS và Markdown bạn viết.</p>
+        </div>
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="400">
+          <div class="text-3xl text-red-400 mb-4"><i class="fas fa-bug"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Chạy & Gỡ lỗi</h3>
+          <p class="text-gray-400">Thực thi mã trong trình duyệt, in ra lỗi và kết quả ngay tức thì.</p>
+        </div>
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="500">
+          <div class="text-3xl text-purple-400 mb-4"><i class="fas fa-file-upload"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Mở & Lưu file</h3>
+          <p class="text-gray-400">Tải lên, tải xuống file dễ dàng mà không cần cài phần mềm.</p>
+        </div>
+
+        <div class="p-6 bg-gray-800 rounded-lg shadow-lg" data-aos="fade-up" data-aos-delay="600">
+          <div class="text-3xl text-indigo-400 mb-4"><i class="fas fa-adjust"></i></div>
+          <h3 class="text-xl font-semibold mb-2">Tuỳ chỉnh giao diện</h3>
+          <p class="text-gray-400">Chọn theme tối, sáng, thay đổi font hoặc bố cục theo ý thích.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action -->
+  <section class="py-20 bg-gradient-to-br from-gray-900 to-gray-800 text-center">
+    <h2 class="text-3xl md:text-4xl font-bold mb-4" data-aos="fade-up">💻 Sẵn sàng viết mã?</h2>
+    <p class="text-gray-400 mb-8" data-aos="fade-up" data-aos-delay="100">Truy cập trình chỉnh sửa và bắt đầu sáng tạo ngay hôm nay.</p>
+    <a href="public/code-editor.html" class="bg-green-600 hover:bg-green-700 px-8 py-3 rounded-lg text-lg transition" data-aos="fade-up" data-aos-delay="200">Mở trình soạn thảo</a>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-black text-gray-500 text-center py-6 text-sm">
+    © 2025 Code Editor. Thiết kế & phát triển bởi <span class="text-white">Phúc Nguyễn</span>.
+  </footer>
+</body>
+</html>

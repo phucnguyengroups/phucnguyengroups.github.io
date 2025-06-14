@@ -1,0 +1,30 @@
+{
+  "name": "Code Editor",
+  "short_name": "Code Editor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "natural",
+  "icons": [
+    {
+      "src": "/icons/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "dir": "auto",
+  "lang": "vi",
+  "display_override": [
+    "standalone",
+    "browser",
+    "minimal-ui",
+    "fullscreen",
+    "window-controls-overlay"
+  ]
+}

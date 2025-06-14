@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Editor</title>
+  <link rel="icon" href="/images/logo.ico" type="image/x-icon" />
+  <meta name="description" content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+  <meta name="author" content="Phúc Nguyễn" />
+
+  <!-- SEO Open Graph -->
+  <meta property="og:title" content="Code Editor" />
+  <meta property="og:description" content="Trình chỉnh sửa mã nguồn thế hệ mới, tích hợp GitHub, chạy mã trực tiếp và hỗ trợ preview HTML/Markdown – tất cả trên trình duyệt." />
+  <meta property="og:image" content="/images/avatar.webp" />
+  <meta property="og:url" content="https://phucnguyengroups.github.io.git" />
+  <meta name="theme-color" content="#000000" />
+
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/style/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" />
+
+  <!-- JS Libraries -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+  <script src="/script/runCodeFromEditor.js"></script>
+
+  <!-- Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/public/service-worker.js')
+        .then(() => {
+          console.log('Service Worker đã được đăng ký');
+        })
+        .catch((err) => {
+          console.error('Đăng ký Service Worker thất bại:', err);
+        });
+    }
+  </script>
+</head>
+
+<body class="bg-gray-900 text-white font-sans h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-gray-800 px-4 py-3 flex justify-between items-center">
+    <h1 class="text-xl font-semibold">Code Editor</h1>
+    <div class="flex gap-2 items-center">
+      <select id="themeSelect" class="bg-gray-700 text-white p-1 rounded ml-2">
+        <option value="vs-dark">Dark Mode</option>
+        <option value="vs">Light Mode</option>
+        <option value="hc-black">High Contrast</option>
+      </select>
+      <select id="languageSelect" class="bg-gray-700 text-white p-1 rounded ml-2">
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="javascript">JS</option>
+        <option value="markdown">Markdown</option>
+      </select>
+      <select id="fontSizeSelect" class="bg-gray-700 text-white p-1 rounded"></select>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="bg-gray-800 w-52 p-4 flex flex-col gap-2 transition-all duration-300">
+      <button id="menuToggleBtn" class="self-end text-gray-400 hover:text-white">&#9776;</button>
+
+      <button onclick="openModal(false)" class="bg-blue-600 hover:bg-blue-700 rounded p-2 text-sm sidebar-label">
+        <i class="fab fa-github"></i> Lấy từ GitHub
+      </button>
+
+      <button onclick="openModal(true)" id="uploadToGithubBtn" class="bg-green-600 hover:bg-green-700 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-upload"></i> Tải lên GitHub
+      </button>
+
+      <button onclick="editor.getAction('actions.find').run()" class="bg-gray-700 hover:bg-gray-600 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-search"></i> Tìm/Thay thế
+      </button>
+
+      <button onclick="downloadFile()" class="bg-yellow-600 hover:bg-yellow-700 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-download"></i> Tải xuống
+      </button>
+
+      <button onclick="previewCode()" class="bg-indigo-600 hover:bg-indigo-700 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-eye"></i> Xem trước
+      </button>
+
+      <button onclick="previewMarkdown()" class="bg-orange-600 hover:bg-orange-700 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-file-alt"></i> Xem Markdown
+      </button>
+
+      <button onclick="runCodeFromEditor('editor', 'debugOutput')" class="bg-red-600 hover:bg-red-700 rounded p-2 text-sm sidebar-label">
+        <i class="fas fa-play"></i> Chạy & Gỡ lỗi
+      </button>
+
+      <label for="localFile" class="mt-2 text-xs sidebar-label">Chọn file từ máy:</label>
+      <input type="file" id="localFile" onchange="handleFileSelect(event)" class="text-sm text-white bg-gray-700 p-1 sidebar-label" />
+    </aside>
+
+    <!-- Editor and Output -->
+    <main class="flex-1 flex flex-col relative">
+      <div id="editor" class="flex-1 border-t border-gray-700"></div>
+      <div id="debugOutput" class="p-4 bg-gray-900 text-green-400 font-mono whitespace-pre-wrap rounded overflow-y-auto max-h-64"></div>
+      <div id="status" class="p-2 bg-gray-800 text-sm text-green-400"></div>
+    </main>
+  </div>
+
+  <!-- Preview Modal (Only keep one version) -->
+  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="bg-white text-black rounded-lg shadow-lg w-[90vw] h-[80vh] relative overflow-hidden">
+      <button onclick="closePreviewModal()" class="absolute top-2 right-3 text-red-500 text-xl font-bold hover:text-red-700">×</button>
+      <iframe id="previewIframe" class="w-full h-full border-0"></iframe>
+    </div>
+  </div>
+
+  <!-- Markdown Modal -->
+  <div id="markdownModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg w-[90vw] h-[80vh] relative overflow-hidden p-4">
+      <button onclick="closeMarkdownModal()" class="absolute top-2 right-3 text-red-500 text-xl font-bold hover:text-red-700">×</button>
+      <article id="markdownContent" class="markdown-body prose prose-invert overflow-auto h-full p-4 bg-black text-white"></article>
+    </div>
+  </div>
+
+  <!-- GitHub Modal -->
+  <div id="githubModal" class="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center hidden z-50">
+    <div class="bg-gray-800 p-6 rounded shadow-lg w-full max-w-md space-y-4">
+      <h2 class="text-lg font-bold text-white">Thông tin GitHub</h2>
+      <input id="githubToken" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="GitHub Token" />
+      <input id="githubOwner" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Tên người dùng" />
+      <input id="githubRepo" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Tên repository" />
+      <input id="githubBranch" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Nhánh (mặc định: main)" />
+      <input id="githubFilename" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Tên file hoặc để trống để duyệt" />
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white">Hủy</button>
+        <button onclick="submitModalData()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white">Xác nhận</button>
+      </div>
+
+      <div id="fileBrowser" class="max-h-64 overflow-y-auto mt-4 text-sm text-white space-y-1"></div>
+    </div>
+  </div>
+
+<script>
+    let editor;
+let isUpload = false;
+
+// Cấu hình Monaco
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+    editor = monaco.editor.create(document.getElementById('editor'), {
+        //value: '// Viết mã tại đây...\n',
+        language: 'html', //javascript
+        theme: 'vs-dark',
+        automaticLayout: true,
+        fontSize: 12,
+    });
+
+monaco.languages.registerCompletionItemProvider('*', {
+    provideCompletionItems(model, position) {
+        const word = model.getWordUntilPosition(position);
+        const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn
+        };
+        const currentWord = word.word.toLowerCase();
+        const suggestions = [];
+
+        // --- Snippets cơ bản cho JavaScript ---
+        const jsSnippets = [
+            { label: 'log', text: 'console.log(${1})', doc: 'Log to console' },
+            { label: 'clg', text: 'console.log(${1})', doc: 'Console log (alias)' },
+            { label: 'function', text: 'function ${1:name}(${2:params}) {\n\t${3}\n}', doc: 'Named function' },
+            { label: 'arrowFunction', text: '(${1:params}) => {\n\t${2}\n}', doc: 'Arrow function' },
+            { label: 'if', text: 'if (${1:condition}) {\n\t${2}\n}', doc: 'If statement' },
+            { label: 'ife', text: 'if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}', doc: 'If-Else statement' },
+            { label: 'for', text: 'for (let ${1:i} = 0; ${1} < ${2}.length; ${1}++) {\n\t${3}\n}', doc: 'For loop' },
+            { label: 'forEach', text: '${1:array}.forEach(${2:item} => {\n\t${3}\n});', doc: 'forEach loop' },
+            { label: 'while', text: 'while (${1:condition}) {\n\t${2}\n}', doc: 'While loop' },
+            { label: 'doWhile', text: 'do {\n\t${1}\n} while (${2:condition});', doc: 'Do-While loop' },
+            { label: 'class', text: 'class ${1:ClassName} {\n\tconstructor(${2}) {\n\t\t${3}\n\t}\n}', doc: 'Class definition' },
+            { label: 'tryCatch', text: 'try {\n\t${1}\n} catch (${2:error}) {\n\t${3}\n}', doc: 'Try-catch block' },
+            { label: 'import', text: 'import ${1} from \'${2:path}\';', doc: 'Import module' },
+            { label: 'export', text: 'export ${1:const} ${2:name} = ${3};', doc: 'Export value' }
+        ];
+
+        jsSnippets.forEach(s => suggestions.push({
+            label: s.label,
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: s.text,
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+            documentation: s.doc
+        }));
+
+        // --- Từ khóa khai báo biến cho JavaScript ---
+        ['let', 'const', 'var'].forEach(k => {
+            suggestions.push({
+                label: k,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: `${k} \${1:name} = \${2:value};`,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                range,
+                documentation: `Declare a ${k === 'var' ? 'function-scoped' : 'block-scoped'} variable`
+            });
+        });
+
+        // --- Gợi ý từ các built-in objects/methods trong JS ---
+        const builtIns = [
+            'console', 'Math', 'Date', 'JSON', 'Array', 'String', 'Object',
+            'Number', 'Boolean', 'Promise', 'fetch', 'setTimeout', 'setInterval',
+            'clearTimeout', 'clearInterval', 'NaN', 'Infinity', 'undefined', 'null', 'true', 'false'
+        ];
+        builtIns.forEach(bi => suggestions.push({
+            label: bi,
+            kind: monaco.languages.CompletionItemKind.Module,
+            insertText: bi,
+            range,
+            documentation: `Built-in object: ${bi}`
+        }));
+
+        // --- Gợi ý theo ngữ cảnh từ khóa hiện tại trong JS ---
+        if (currentWord.startsWith('con')) {
+            ['log', 'warn', 'error', 'info', 'debug'].forEach(method => {
+                suggestions.push({
+                    label: `console.${method}`,
+                    kind: monaco.languages.CompletionItemKind.Method,
+                    insertText: `console.${method}(\${1})`,
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    range,
+                    documentation: `console.${method}()`
+                });
+            });
+        }
+
+        if (currentWord.includes('arr') || currentWord.includes('array')) {
+            ['map', 'filter', 'reduce', 'push', 'pop', 'length'].forEach(method => {
+                suggestions.push({
+                    label: method,
+                    kind: monaco.languages.CompletionItemKind.Method,
+                    insertText: method === 'length' ? 'length' : `${method}(\${1})`,
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    range,
+                    documentation: `Array method: ${method}`
+                });
+            });
+        }
+
+        // Gợi ý return nếu trong context function/arrow function
+        const line = model.getLineContent(position.lineNumber);
+        if (line.includes('function') || line.includes('=>')) {
+            suggestions.push({
+                label: 'return',
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: 'return ${1:value};',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                range,
+                documentation: 'Return statement'
+            });
+        }
+
+        // --- Snippets Markdown ---
+        const markdownSnippets = [
+            {
+                label: '# Heading 1',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '# ${1:Title}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Heading level 1',
+                range
+            },
+            {
+                label: '## Heading 2',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '## ${1:Subtitle}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Heading level 2',
+                range
+            },
+            {
+                label: '**Bold**',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '**${1:text}**',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Bold text',
+                range
+            },
+            {
+                label: '*Italic*',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '*${1:text}*',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Italic text',
+                range
+            },
+            {
+                label: 'Link',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '[${1:link text}](https://${2:url})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Markdown link',
+                range
+            },
+            {
+                label: 'Image',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '![${1:alt text}](https://${2:image.url})',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Markdown image',
+                range
+            },
+            {
+                label: 'Code Block',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '```${1:lang}\n${2:code}\n```',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Code block',
+                range
+            },
+            {
+                label: '- List Item',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '- ${1:item}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'List item',
+                range
+            },
+            {
+                label: '> Blockquote',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: '> ${1:quote}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Blockquote',
+                range
+            }
+        ];
+
+        markdownSnippets.forEach(s => suggestions.push({
+            label: s.label,
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: s.insertText,
+            insertTextRules: s.insertTextRules,
+            documentation: s.documentation,
+            range
+        }));
+
+        return { suggestions };
+    }
+});
+
+    const fontSizeSelect = document.getElementById('fontSizeSelect');
+    [10, 12, 14, 16, 18, 20, 24, 28, 32].forEach(size => {
+        const option = document.createElement('option');
+        option.value = size;
+        option.textContent = size + ' px';
+        fontSizeSelect.appendChild(option);
+    });
+    fontSizeSelect.value = 12;
+    fontSizeSelect.addEventListener('change', () => {
+        editor.updateOptions({ fontSize: parseInt(fontSizeSelect.value, 10) });
+    });
+
+    document.getElementById('themeSelect').addEventListener('change', (e) => {
+        monaco.editor.setTheme(e.target.value);
+    });
+});
+
+document.getElementById('languageSelect').addEventListener('change', (e) => {
+    monaco.editor.setModelLanguage(editor.getModel(), e.target.value);
+});
+
+// Toggle sidebar
+const toggleBtn = document.getElementById('menuToggleBtn');
+const sidebar = document.getElementById('sidebar');
+const labels = document.querySelectorAll('.sidebar-label');
+toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('w-52');
+    sidebar.classList.toggle('w-14');
+    labels.forEach(label => {
+        label.classList.toggle('hidden');
+        label.classList.toggle('opacity-0');
+    });
+});
+
+function openModal(upload = false) {
+    isUpload = upload;
+    document.getElementById("githubModal").classList.remove("hidden");
+}
+
+function closeModal() {
+    document.getElementById("githubModal").classList.add("hidden");
+}
+
+function submitModalData() {
+    const token = document.getElementById("githubToken").value.trim();
+    const owner = document.getElementById("githubOwner").value.trim();
+    const repo = document.getElementById("githubRepo").value.trim();
+    const branch = document.getElementById("githubBranch").value.trim() || "main";
+    const filename = document.getElementById("githubFilename").value.trim();
+
+    if (!token || !owner || !repo) {
+        alert("Vui lòng nhập đủ thông tin GitHub Token, Owner và Repo.");
+        return;
+    }
+
+    closeModal();
+
+    if (isUpload && filename) {
+        uploadFileToGitHub(token, owner, repo, branch, filename);
+    } else if (!isUpload && filename) {
+        fetchFileFromGitHubCustom(token, owner, repo, branch, filename);
+    } else {
+        loadRepoTree(token, owner, repo, branch, '');
+    }
+}
+
+function loadRepoTree(token, owner, repo, branch, path = '') {
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+    fetch(url, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    })
+        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+        .then(items => {
+            const container = document.getElementById('fileBrowser');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (path) {
+                const parentPath = path.split('/').slice(0, -1).join('/');
+                const backBtn = document.createElement('div');
+                backBtn.className = 'py-1 pl-2 text-yellow-400 cursor-pointer hover:underline';
+                backBtn.textContent = '🔙 Quay lại';
+                backBtn.onclick = () => loadRepoTree(token, owner, repo, branch, parentPath);
+                container.appendChild(backBtn);
+            }
+
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'pl-4 py-1 cursor-pointer hover:bg-gray-700 rounded text-sm flex items-center';
+                div.innerHTML = item.type === 'dir'
+                    ? `<span class="mr-2">📁</span> ${item.name}`
+                    : `<span class="mr-2">📄</span> ${item.name}`;
+
+                if (item.type === 'dir') {
+                    div.onclick = () => loadRepoTree(token, owner, repo, branch, item.path);
+                } else if (item.type === 'file') {
+                    div.onclick = () => {
+                        fetchFileFromGitHubCustom(token, owner, repo, branch, item.path);
+                        document.getElementById("githubFilename").value = item.path;
+                    };
+                }
+
+                container.appendChild(div);
+            });
+
+            showStatus(`📂 Đang xem thư mục: /${path || ''}`);
+        })
+        .catch(err => showStatus(`❌ Lỗi tải thư mục: ${err.message}`, true));
+}
+
+function fetchFileFromGitHubCustom(token, owner, repo, branch, filename) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}?ref=${branch}`;
+    fetch(url, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    })
+        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+        .then(data => {
+            const content = decodeURIComponent(escape(atob(data.content)));
+            editor.setValue(content);
+            setLanguageByFilename(filename);
+            showStatus(`📄 Đã tải ${filename} từ GitHub`);
+        })
+        .catch(err => showStatus(`❌ Lỗi: ${err.message}`, true));
+}
+
+function uploadFileToGitHub(token, owner, repo, branch, filename) {
+    const content = editor.getValue();
+    const base64Content = btoa(unescape(encodeURIComponent(content)));
+    const urlGet = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}?ref=${branch}`;
+
+    fetch(urlGet, {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    })
+        .then(res => res.status === 404 ? null : res.json())
+        .then(data => {
+            const sha = data ? data.sha : null;
+            const urlPut = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
+            return fetch(urlPut, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({
+                    message: `Update file ${filename} via web editor`,
+                    branch: branch,
+                    content: base64Content,
+                    sha: sha
+                })
+            });
+        })
+        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+        .then(() => showStatus(`✅ Đã tải lên file ${filename} thành công!`))
+        .catch(err => showStatus(`❌ Lỗi tải lên: ${err.message}`, true));
+}
+
+function handleFileSelect(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        editor.setValue(e.target.result);
+        setLanguageByFilename(file.name);
+        showStatus(`📄 Đã mở file ${file.name} từ máy`);
+    };
+    reader.readAsText(file);
+}
+
+function downloadFile() {
+    const content = editor.getValue();
+    const filename = prompt("Nhập tên file để lưu:", "code.js");
+    if (!filename) return;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showStatus(`✅ Đã tải file ${filename} xuống`);
+}
+
+  // Hàm xem trước mã
+  function previewCode() {
+    const code = editor.getValue();
+    const language = document.getElementById('languageSelect').value;
+    const iframe = document.getElementById('previewIframe');
+    const modal = document.getElementById('previewModal');
+
+    let htmlContent = '';
+
+    if (language === 'html') {
+      htmlContent = code;
+    } else if (language === 'css') {
+      htmlContent = `<style>${code}</style>`;
+    } else if (language === 'javascript') {
+      htmlContent = `<script>${code}<\/script>`;
+    }
+
+    iframe.srcdoc = htmlContent;
+    modal.classList.remove('hidden');
+  }
+
+  // Hàm đóng modal xem trước
+  function closePreviewModal() {
+    document.getElementById('previewModal').classList.add('hidden');
+    document.getElementById('previewIframe').srcdoc = '';
+  }
+
+  // Hàm xem trước Markdown
+  function previewMarkdown() {
+    const code = editor.getValue();
+    const html = marked.parse(code); // Dùng thư viện marked.js
+    document.getElementById('markdownContent').innerHTML = html;
+    document.getElementById('markdownModal').classList.remove('hidden');
+  }
+
+  // Hàm đóng modal Markdown
+  function closeMarkdownModal() {
+    document.getElementById('markdownModal').classList.add('hidden');
+    document.getElementById('markdownContent').innerHTML = '';
+  }
+
+function closePreviewModal() {
+    document.getElementById('previewModal').classList.add('hidden');
+}
+
+function setLanguageByFilename(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    let lang = 'plaintext';
+
+    const map = {
+        js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
+        html: 'html', htm: 'html', css: 'css', scss: 'scss', less: 'less',
+        json: 'json', md: 'markdown', xml: 'xml', yml: 'yaml', yaml: 'yaml',
+        py: 'python', php: 'php', rb: 'ruby', java: 'java', c: 'c', cpp: 'cpp',
+        cc: 'cpp', cxx: 'cpp', cs: 'csharp', go: 'go', rs: 'rust',
+        kt: 'kotlin', kts: 'kotlin', swift: 'swift', sql: 'sql',
+        sh: 'shell', bash: 'shell', bat: 'bat', dockerfile: 'dockerfile',
+        makefile: 'makefile', ini: 'ini', toml: 'toml', vue: 'vue',
+        svelte: 'svelte', r: 'r', pl: 'perl', lua: 'lua', dart: 'dart',
+        scala: 'scala', groovy: 'groovy', asm: 'asm'
+    };
+
+    lang = map[ext] || 'plaintext';
+    monaco.editor.setModelLanguage(editor.getModel(), lang);
+}
+
+function showStatus(msg, isError = false) {
+    const status = document.getElementById('status');
+    status.textContent = msg;
+    status.style.color = isError ? '#f87171' : '#34d399';
+    setTimeout(() => {
+        status.textContent = '';
+    }, 4000);
+}
+</script>
+   
+</body>
+
+</html>
